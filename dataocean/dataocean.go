@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/osga1291/upload/shared"
 )
@@ -18,7 +19,7 @@ type DataOcean struct {
 }
 
 type AssemblyPage struct {
-	Assembly AssemblyParts `json:"file"`
+	Assembly AssemblyParts `json:"upload"`
 }
 
 type AssemblyParts struct {
@@ -30,7 +31,7 @@ type AssembleTag struct {
 	PartNumber int    `json:"part_number"`
 }
 
-func NewDO() *DataOcean {
+func NewDataOcean() *DataOcean {
 	return &DataOcean{
 		client: http.Client{},
 		urls: map[string]string{
@@ -82,11 +83,12 @@ func (do *DataOcean) ExtractCreateFileResp(resp *http.Response) (string, string,
 }
 
 func (do *DataOcean) WaitForAvailable(resourceId string) error {
-	url, err := do.GetUrl("getUpload", map[string]string{"fileId": resourceId})
+	url, err := do.GetUrl("getFile", map[string]string{"fileId": resourceId})
 	if err != nil {
 		return err
 	}
 	for {
+		time.Sleep(2 * time.Second)
 		resp, err := shared.Request(
 			do.GetClient(), "GET", url, nil)
 
@@ -109,13 +111,14 @@ func (do *DataOcean) WaitForAvailable(resourceId string) error {
 					if status, ok := file["status"]; ok && status == "AVAILABLE" {
 						fmt.Println("File is available")
 						return nil
+					} else if status == "ARCHIVE_PROCESSING_FAILED" {
+						return fmt.Errorf("File processing failed")
 					}
 				}
 			} else {
 				return fmt.Errorf("Bad request on waiting for file: %s", result)
 			}
 		}
-		return fmt.Errorf("Bad request on waiting for file")
 	}
 }
 
@@ -144,9 +147,9 @@ func (do *DataOcean) Assemble(id string, parts []shared.AssembleTag) error {
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil
+		return fmt.Errorf("Assemble request failed with status: %d\n", resp.StatusCode)
 	}
-	return fmt.Errorf("Assemble request failed with status: %d\n", resp.StatusCode)
+	return nil
 
 }
 
@@ -159,8 +162,7 @@ func (do *DataOcean) CreateTag(etag string, partNumber int) shared.AssembleTag {
 	}
 }
 
-/*
-func rename(fileId string) string {
+func (do *DataOcean) rename(fileId string) string {
 	randPath := fmt.Sprintf("/%s/updated/name", shared.GenerateRandomString(10))
 	jsonData := map[string]interface{}{
 		"file": map[string]string{
@@ -171,7 +173,7 @@ func rename(fileId string) string {
 	if err != nil {
 		log.Panic(err)
 	}
-	resp := shared.JsonRequest(client, "PATCH", fmt.Sprintf("*/files/%s", fileId), &jsonBytes)
+	resp, err := shared.Request(do.GetClient(), "PATCH", fmt.Sprintf("*/files/%s", fileId), &jsonBytes)
 	if resp.StatusCode == http.StatusAccepted {
 		fmt.Println("JSON request successful")
 	} else {
@@ -180,4 +182,15 @@ func rename(fileId string) string {
 
 	return randPath
 }
-*/
+
+func (do *DataOcean) CheckIfMultipart(payload map[string]interface{}) (bool, error) {
+
+	if file, ok := payload["file"].(map[string]interface{}); ok {
+		if multipart, ok := file["multipart"]; !ok || multipart.(bool) == false {
+			return false, nil
+		} else {
+			return true, nil
+		}
+	}
+	return false, fmt.Errorf("Invalid payload")
+}

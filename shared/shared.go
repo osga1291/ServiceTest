@@ -131,7 +131,12 @@ func Upload(service Service, payload map[string]interface{}, file *os.File, opti
 		return "", err
 	}
 
-	if multipart, ok := payload["multipart"]; !ok || multipart.(bool) == false {
+	isMulti, error := service.CheckIfMultipart(payload)
+	if error != nil {
+		return "", error
+	}
+
+	if !isMulti {
 		if opts.ContentLength < opts.ChunkSize {
 			return SinglepartUpload(service, payload, file, opts)
 		} else {
@@ -155,6 +160,25 @@ func CreateFile(service Service, payload map[string]interface{}, url string) (*h
 	}
 
 	if resp.StatusCode != http.StatusCreated {
+		return nil, fmt.Errorf("JSON request failed with status: %d", resp.StatusCode)
+	}
+	return resp, nil
+}
+
+func GetFile(service Service, fileId string) (*http.Response, error) {
+
+	url, err := service.GetUrl("getFile", map[string]string{"fileId": fileId})
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := Request(service.GetClient(), "GET", url, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("JSON request failed with status: %d", resp.StatusCode)
 	}
 	return resp, nil

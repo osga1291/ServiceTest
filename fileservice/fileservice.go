@@ -68,8 +68,7 @@ func (fs *FileService) CacheSpace(id string) {
 	fs.cacheSpaceId = id
 }
 
-/*
-func createFolder(parentId string) {
+func (fs *FileService) createFolder(parentId string) {
 	jsonData := map[string]interface{}{
 		"parentId": parentId,
 		"name":     shared.GenerateRandomString(5),
@@ -78,7 +77,7 @@ func createFolder(parentId string) {
 	if err != nil {
 		log.Panic(err)
 	}
-	resp := shared.JsonRequest(client, "POST", "*/spaces/a64218bc-8538-43ca-9d6d-e845a775722a/folders?complete=True", &jsonBytes)
+	resp, err := shared.Request(fs.GetClient(), "POST", "*/spaces/a64218bc-8538-43ca-9d6d-e845a775722a/folders?complete=True", &jsonBytes)
 
 	if resp.StatusCode == http.StatusCreated {
 		fmt.Println("JSON request successful")
@@ -90,7 +89,7 @@ func createFolder(parentId string) {
 	}
 }
 
-func (*FileService) createSpace() *http.Response {
+func (fs *FileService) createSpace() *http.Response {
 	jsonData := map[string]interface{}{
 		"space": map[string]interface{}{
 			"name":      "test-space",
@@ -105,7 +104,7 @@ func (*FileService) createSpace() *http.Response {
 	if err != nil {
 		log.Panic(err)
 	}
-	resp := shared.JsonRequest(client, "POST", "*/spaces?complete=True", &jsonBytes)
+	resp, err := shared.Request(fs.GetClient(), "POST", "*/spaces?complete=True", &jsonBytes)
 
 	if resp.StatusCode == http.StatusCreated {
 		fmt.Println("JSON request successful")
@@ -117,7 +116,6 @@ func (*FileService) createSpace() *http.Response {
 	}
 	return resp
 }
-*/
 
 func (*FileService) ExtractCreateFileResp(resp *http.Response) (string, string, string, error) {
 	var result map[string]interface{}
@@ -213,5 +211,13 @@ func (fs *FileService) CreateTag(etag string, partNumber int) shared.AssembleTag
 		PartNumber: partNumber,
 		EtagTag:    "etag",
 		PartTag:    "partNumber",
+	}
+}
+
+func (do *FileService) CheckIfMultipart(payload map[string]interface{}) (bool, error) {
+	if multipart, ok := payload["multipart"]; !ok || multipart.(bool) == false {
+		return false, nil
+	} else {
+		return true, nil
 	}
 }

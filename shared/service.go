@@ -9,4 +9,5 @@ type Service interface {
 	WaitForAvailable(id string) error
 	Assemble(id string, parts []AssembleTag) error
 	CreateTag(etag string, partNumber int) AssembleTag
+	CheckIfMultipart(payload map[string]interface{}) (bool, error)
 }
