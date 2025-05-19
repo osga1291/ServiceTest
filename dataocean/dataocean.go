@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/osga1291/upload/shared"
 )
@@ -88,9 +87,8 @@ func (do *DataOcean) WaitForAvailable(resourceId string) error {
 		return err
 	}
 	for {
-		time.Sleep(2 * time.Second)
 		resp, err := shared.Request(
-			do.GetClient(), "GET", url, nil)
+			do.GetClient(), "GET", url, nil, nil)
 
 		if err != nil {
 			return err
@@ -142,7 +140,7 @@ func (do *DataOcean) Assemble(id string, parts []shared.AssembleTag) error {
 		return err
 	}
 
-	resp, err := shared.Request(do.GetClient(), "POST", url, &s)
+	resp, err := shared.Request(do.GetClient(), "POST", url, &s, nil)
 	if err != nil {
 		return err
 	}
@@ -173,7 +171,7 @@ func (do *DataOcean) rename(fileId string) string {
 	if err != nil {
 		log.Panic(err)
 	}
-	resp, err := shared.Request(do.GetClient(), "PATCH", fmt.Sprintf("*/files/%s", fileId), &jsonBytes)
+	resp, err := shared.Request(do.GetClient(), "PATCH", fmt.Sprintf("*/files/%s", fileId), &jsonBytes, nil)
 	if resp.StatusCode == http.StatusAccepted {
 		fmt.Println("JSON request successful")
 	} else {

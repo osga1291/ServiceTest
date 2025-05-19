@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/osga1291/upload/shared"
 )
@@ -68,7 +69,7 @@ func (fs *FileService) CacheSpace(id string) {
 	fs.cacheSpaceId = id
 }
 
-func (fs *FileService) createFolder(parentId string) {
+func (fs *FileService) CreateFolder(parentId string) (string, error) {
 	jsonData := map[string]interface{}{
 		"parentId": parentId,
 		"name":     shared.GenerateRandomString(5),
@@ -77,8 +78,15 @@ func (fs *FileService) createFolder(parentId string) {
 	if err != nil {
 		log.Panic(err)
 	}
-	resp, err := shared.Request(fs.GetClient(), "POST", "*/spaces/a64218bc-8538-43ca-9d6d-e845a775722a/folders?complete=True", &jsonBytes)
-
+	url, err := fs.GetUrl("createFolder", nil)
+	if err != nil {
+		log.Panic(err)
+	}
+	// fmt.Println(url)
+	resp, err := shared.Request(fs.GetClient(), "POST", url, &jsonBytes, nil)
+	if err != nil {
+		log.Panic(err)
+	}
 	if resp.StatusCode == http.StatusCreated {
 		fmt.Println("JSON request successful")
 	} else {
@@ -87,6 +95,14 @@ func (fs *FileService) createFolder(parentId string) {
 		_ = json.Unmarshal(bodyBytes, &result)
 		fmt.Printf("JSON request failed with status: %s\n", bodyBytes)
 	}
+
+	id, err := fs.ExtractCreateFolderResp(resp)
+	if err != nil {
+		log.Panic(err)
+
+	}
+	return id, nil
+
 }
 
 func (fs *FileService) createSpace() *http.Response {
@@ -104,7 +120,7 @@ func (fs *FileService) createSpace() *http.Response {
 	if err != nil {
 		log.Panic(err)
 	}
-	resp, err := shared.Request(fs.GetClient(), "POST", "*/spaces?complete=True", &jsonBytes)
+	resp, err := shared.Request(fs.GetClient(), "POST", "*/spaces?complete=True", &jsonBytes, nil)
 
 	if resp.StatusCode == http.StatusCreated {
 		fmt.Println("JSON request successful")
@@ -140,14 +156,33 @@ func (*FileService) ExtractCreateFileResp(resp *http.Response) (string, string, 
 	return "", "", "", fmt.Errorf("Response body is nil")
 }
 
+func (*FileService) ExtractCreateFolderResp(resp *http.Response) (string, error) {
+	var result map[string]interface{}
+	defer resp.Body.Close()
+	if resp.Body != nil {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+		err = json.Unmarshal(bodyBytes, &result)
+		if err != nil {
+			return "", err
+		}
+		return result["id"].(string), nil
+	}
+	return "", fmt.Errorf("Response body is nil")
+}
+
 func (fs *FileService) WaitForAvailable(resourceId string) error {
 	url, err := fs.GetUrl("getUpload", map[string]string{"uploadId": resourceId})
 	if err != nil {
 		return err
 	}
+
 	for {
+		time.Sleep(5 * time.Second)
 		resp, err := shared.Request(
-			fs.GetClient(), "GET", url, nil)
+			fs.GetClient(), "GET", url, nil, nil)
 
 		if err != nil {
 			return err
@@ -194,7 +229,7 @@ func (fs *FileService) Assemble(id string, parts []shared.AssembleTag) error {
 		return err
 	}
 
-	resp, err := shared.Request(fs.GetClient(), "PATCH", url, &s)
+	resp, err := shared.Request(fs.GetClient(), "PATCH", url, &s, nil)
 	if err != nil {
 		return err
 	}

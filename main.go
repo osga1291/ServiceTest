@@ -16,46 +16,86 @@ import (
 	"github.com/osga1291/upload/shared"
 )
 
-func CreateFSFile() {
+func CreateFSFile(parentId string) {
 	// Create a new FileService
 	fs := fileservice.NewFileService()
 
-	fs.CacheSpace("cebd37fd-a802-41fa-8994-ea03b27dafcb")
+	fs.CacheSpace("66e654cf-67cb-4b44-ba7d-4981bbe7257e")
 
 	// Create a new file
 	payload := map[string]interface{}{
-		"name":      "test2.txt",
-		"parentId":  "dd0475ec-a2b2-4d9c-b682-b799ccc823cb",
+		"name":      shared.GenerateRandomString(5),
+		"parentId":  parentId,
 		"multipart": true,
+	}
+
+	queryParams := map[string]string{
+		"urlDuration": "7d",
+	}
+
+	file, err := os.Open("/Users/ogandar/Downloads/big_file_test/connect_big_file")
+	if err != nil {
+		log.Panic(err)
+	}
+	fileId, err := shared.Upload(fs, payload, queryParams, file)
+	if err != nil {
+		log.Panic(err)
+	}
+	fmt.Printf("File ID: %s\n", fileId)
+}
+func CreateFSFolder(parentId string) string {
+	// Create a new FileService
+	fs := fileservice.NewFileService()
+
+	fs.CacheSpace("66e654cf-67cb-4b44-ba7d-4981bbe7257e")
+
+	id, err := fs.CreateFolder(parentId)
+	if err != nil {
+		log.Panic(err)
+	}
+	return id
+}
+
+func CreateDOSupportFile() {
+	do := dataocean.NewDataOcean()
+
+	payload := map[string]interface{}{
+		"file": map[string]interface{}{
+			"path":      fmt.Sprintf("/%s/REPRESENTATION/fileVersion123/%s.png", shared.GenerateRandomString(5), shared.GenerateRandomString(5)),
+			"regions":   []string{"us1"},
+			"multipart": false,
+			"fileset":   false,
+		},
 	}
 	file, err := os.Open("/Users/ogandar/Downloads/temp.zip")
 	if err != nil {
 		log.Panic(err)
 	}
-	fileId, err := shared.Upload(fs, payload, file)
+
+	fileId, err := shared.Upload(do, payload, nil, file)
 	if err != nil {
 		log.Panic(err)
 	}
 	fmt.Printf("File ID: %s\n", fileId)
 }
 
-func CreateDOFile() string {
+func CreateDOFile(filePath string, singlepart bool) string {
 	do := dataocean.NewDataOcean()
 
 	payload := map[string]interface{}{
 		"file": map[string]interface{}{
 			"path":      fmt.Sprintf("/folderA/%s", shared.GenerateRandomString(5)),
 			"regions":   []string{"us1"},
-			"multipart": false,
+			"multipart": !singlepart,
 			"fileset":   false,
 		},
 	}
-	file, err := os.Open("/Users/ogandar/Desktop/upload_folder/input/profile001.gif")
+	file, err := os.Open(filePath)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	fileId, err := shared.Upload(do, payload, file)
+	fileId, err := shared.Upload(do, payload, nil, file)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -68,7 +108,7 @@ func GetDoFile(fileId string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	do := dataocean.NewDataOcean()
 
-	resp, err := shared.GetFile(do, fileId)
+	resp, err := shared.GetFile(do, fileId, nil)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -136,7 +176,7 @@ func ReadCSVFile(filePath string) ([]string, error) {
 
 func CheckFile() {
 	// Read the CSV file and print the file IDs
-	fileIds, err := ReadCSVFile("/Users/ogandar/Desktop/upload_folder/test18.csv")
+	fileIds, err := ReadCSVFile("/Users/ogandar/Desktop/upload_folder/mount/output/zTknw.csv")
 	if err != nil {
 		log.Panic(err)
 	}
@@ -156,8 +196,11 @@ func CheckFile() {
 
 }
 
-func CreateFileToCSV() {
-	csvFile, err := os.Create("/Users/ogandar/Desktop/upload_folder/test22.csv")
+func CreateFileToCSV(numberFiles int, filePath string, singlePart bool) {
+
+	name := shared.GenerateRandomString(5)
+
+	csvFile, err := os.Create(fmt.Sprintf("/Users/ogandar/Desktop/upload_folder/mount/output/%s.csv", name))
 	if err != nil {
 		log.Panic(err)
 	}
@@ -171,54 +214,55 @@ func CreateFileToCSV() {
 		log.Panic(err)
 	}
 	var wg sync.WaitGroup
-	var mutex sync.Mutex
-	sem := make(chan struct{}, 40)
+	//var mutex sync.Mutex
 
-	for i := 0; i < 10000; i++ {
-		wg.Add(1)
+	sem := make(chan struct{}, 40)
+	if !singlePart {
+		sem = make(chan struct{}, 5)
+	}
+	parentId := "5de170a9-ebb5-42d8-87c1-35bc0594c914"
+	for i := 0; i < numberFiles; i++ {
 		sem <- struct{}{}
 		go func() {
 			defer func() { <-sem }()
-			fileId := CreateDOFile()
-			WriteToCSV(&wg, fileId, writer, &mutex)
+			parentId = CreateFSFolder(parentId)
+			CreateFSFile(parentId)
+			//WriteToCSV(&wg, fileId, writer, &mutex)
 		}()
 	}
 	wg.Wait()
+	fmt.Printf("File created: %s\n", name)
 }
 
 func main() {
-
-	CreateFileToCSV()
-	CheckFile()
-
-	/*
-		csvFile, err := os.Create("/Users/ogandar/Desktop/upload_folder/test1.csv")
-		if err != nil {
-			log.Panic(err)
-		}
-		defer csvFile.Close()
-
-		writer := csv.NewWriter(csvFile)
-		defer writer.Flush()
-
-		err = writer.Write([]string{"FileID"})
-		if err != nil {
-			log.Panic(err)
-		}
-		var wg sync.WaitGroup
-		var mutex sync.Mutex
-		sem := make(chan struct{}, 10)
-
-		for i := 0; i < 1000; i++ {
-			wg.Add(1)
-			sem <- struct{}{}
-			go func() {
-				defer func() { <-sem }()
-				fileId := CreateDOFile()
-				WriteToCSV(&wg, fileId, writer, &mutex)
-			}()
-		}
-		wg.Wait()
-	*/
+	CreateFSFile("5de170a9-ebb5-42d8-87c1-35bc0594c914")
+	//CreateDOFile("/Users/ogandar/Desktop/upload_folder/mount/input/VSCode-darwin-universal.zip", false)
+	//CreateFileToCSV(1000, "/Users/ogandar/Desktop/upload_folder/mount/input/route53.zip", true)
+	//CreateDOFile(100, "/Users/ogandar/Desktop/upload_folder/mount/input/route53.zip", true)
+	//CheckFile()
 
 }
+
+/*
+func main() {
+
+
+	if len(os.Args) < 4 {
+		log.Fatalf("Usage: %s <numberFiles> <filePath> <singlePart>", os.Args[0])
+	}
+
+	numberFiles, err := strconv.Atoi(os.Args[1])
+	if err != nil {
+		log.Fatalf("Invalid numberFiles: %v", err)
+	}
+
+	filePath := os.Args[2]
+	singlePart, err := strconv.ParseBool(os.Args[3])
+	if err != nil {
+		log.Fatalf("Invalid singlePart: %v", err)
+	}
+
+	CreateFileToCSV(numberFiles, filePath, singlePart)
+
+}
+*/
